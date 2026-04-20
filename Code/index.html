@@ -112,6 +112,7 @@
     grid-template-columns: 260px 1fr 220px;
     gap: 0;
     height: 100%;
+    min-height: 0;    /* critical: stops main from growing past its grid row */
     overflow: hidden;
   }
 
@@ -145,16 +146,19 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 32px;
-    padding: 24px;
+    gap: 16px;
+    padding: 12px 24px;
     position: relative;
+    overflow: hidden;
+    min-height: 0;   /* critical: lets flexbox shrink this cell */
   }
 
   /* ── Breath meter (the big circle) ── */
   .breath-container {
     position: relative;
-    width: 240px;
-    height: 240px;
+    width: 200px;
+    height: 200px;
+    flex-shrink: 0;
   }
 
   #breath-svg {
@@ -215,6 +219,7 @@
   /* ── Flow meter bar ── */
   .flow-bar-wrap {
     width: 280px;
+    flex-shrink: 0;
   }
 
   .flow-label {
@@ -474,6 +479,7 @@
     border-radius: 6px;
     background: var(--panel);
     opacity: 0.8;
+    flex-shrink: 0;
   }
 
   /* ── Responsive hint for tiny screens ── */
@@ -855,10 +861,9 @@ const KEY_TO_SEMI = {};
 KEY_MAP.forEach(k => { KEY_TO_SEMI[k.key] = k.semitone; });
 
 document.addEventListener('keydown', e => {
-  if (e.repeat) return;
   const k = e.key.toLowerCase();
 
-  // SPACE → simulate blowing
+  // SPACE → simulate blowing (hold to keep blowing, works on repeat too)
   if (k === ' ') {
     e.preventDefault();
     ensureAudioCtx();
@@ -868,6 +873,9 @@ document.addEventListener('keydown', e => {
     applyBreath(breathVal);
     return;
   }
+
+  // All other keys: ignore auto-repeat so note doesn't re-trigger
+  if (e.repeat) return;
 
   if (k in KEY_TO_SEMI) {
     pressedKeys.add(k);
