@@ -5,10 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Digital Flute</title>
 <style>
-  /* ── Fonts ── */
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
-  /* ── Design Tokens ── */
   :root {
     --bg:          #06080f;
     --panel:       #0d1220;
@@ -31,14 +29,13 @@
     background: var(--bg);
     color: var(--text-hi);
     font-family: 'JetBrains Mono', monospace;
-    min-height: 100vh;
+    height: 100vh;
     display: grid;
     grid-template-rows: auto 1fr auto;
     overflow: hidden;
     position: relative;
   }
 
-  /* ── Atmospheric background ── */
   body::before {
     content: '';
     position: fixed; inset: 0;
@@ -48,7 +45,6 @@
     pointer-events: none;
   }
 
-  /* ── Scanline overlay ── */
   body::after {
     content: '';
     position: fixed; inset: 0;
@@ -60,7 +56,6 @@
     z-index: 999;
   }
 
-  /* ── Header ── */
   header {
     display: flex;
     align-items: center;
@@ -81,10 +76,8 @@
     color: var(--glow-cold);
     text-shadow: 0 0 20px var(--glow-cold), 0 0 40px rgba(58,244,244,0.3);
   }
-
   .logo span { color: var(--text-dim); font-weight: 400; font-size: 0.75rem; letter-spacing: 3px; display: block; }
 
-  /* Connection status */
   #conn-status {
     display: flex;
     align-items: center;
@@ -106,29 +99,29 @@
     box-shadow: 0 0 8px var(--glow-blow);
   }
 
-  /* ── Main layout ── */
+  /* ── FIX 2: main + side panels properly constrained ── */
   main {
     display: grid;
     grid-template-columns: 260px 1fr 220px;
     gap: 0;
-    height: 100%;
-    min-height: 0;    /* critical: stops main from growing past its grid row */
+    min-height: 0;   /* critical: don't expand beyond grid row */
     overflow: hidden;
   }
 
-  /* ── Sidebar panels ── */
   .side-panel {
     border-right: 1px solid var(--border);
     padding: 24px 20px;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    overflow-y: auto;
+    min-height: 0;       /* FIX: allow flexbox to shrink */
+    overflow-y: auto;    /* scroll the whole panel if needed */
     background: rgba(13,18,32,0.5);
   }
   .side-panel.right {
     border-right: none;
     border-left: 1px solid var(--border);
+    overflow: hidden;    /* FIX: don't let panel itself scroll */
   }
 
   .panel-title {
@@ -138,9 +131,27 @@
     text-transform: uppercase;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;      /* FIX: title never shrinks away */
   }
 
-  /* ── Center stage ── */
+  /* ── FIX 2: note log scrolls inside the panel, not the panel itself ── */
+  .note-log-wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;       /* critical for overflow to work in flex child */
+    overflow: hidden;
+  }
+
+  .note-log {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
   .center {
     display: flex;
     flex-direction: column;
@@ -150,10 +161,9 @@
     padding: 12px 24px;
     position: relative;
     overflow: hidden;
-    min-height: 0;   /* critical: lets flexbox shrink this cell */
+    min-height: 0;
   }
 
-  /* ── Breath meter (the big circle) ── */
   .breath-container {
     position: relative;
     width: 200px;
@@ -178,8 +188,8 @@
     stroke: var(--glow-cold);
     stroke-width: 6;
     stroke-linecap: round;
-    stroke-dasharray: 628;
-    stroke-dashoffset: 628;
+    stroke-dasharray: 553;
+    stroke-dashoffset: 553;
     filter: drop-shadow(0 0 8px var(--glow-cold));
     transition: stroke-dashoffset 0.06s linear, stroke 0.3s;
   }
@@ -216,11 +226,7 @@
     opacity: 0.8;
   }
 
-  /* ── Flow meter bar ── */
-  .flow-bar-wrap {
-    width: 280px;
-    flex-shrink: 0;
-  }
+  .flow-bar-wrap { width: 280px; flex-shrink: 0; }
 
   .flow-label {
     display: flex;
@@ -248,7 +254,6 @@
     transition: width 0.06s linear;
   }
 
-  /* "BLOWING" pill indicator */
   #blow-indicator {
     display: flex;
     align-items: center;
@@ -271,11 +276,7 @@
     box-shadow: 0 0 6px currentColor;
   }
 
-  /* ── Keyboard/Notes grid ── */
-  .keyboard-section {
-    width: 100%;
-    max-width: 520px;
-  }
+  .keyboard-section { width: 100%; max-width: 520px; }
 
   .keys-row {
     display: flex;
@@ -334,16 +335,9 @@
     letter-spacing: 1px;
   }
 
-  .key-btn.active .key-note {
-    color: var(--glow-cold);
-  }
+  .key-btn.active .key-note { color: var(--glow-cold); }
 
-  /* ── Settings: left panel ── */
-  .setting-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
+  .setting-row { display: flex; flex-direction: column; gap: 6px; }
 
   .setting-label {
     font-size: 0.65rem;
@@ -381,21 +375,11 @@
     width: 100%;
     outline: none;
   }
-  select:focus, input[type=text]:focus {
-    border-color: var(--glow-cold);
-  }
+  select:focus, input[type=text]:focus { border-color: var(--glow-cold); }
 
-  .val-display {
-    font-size: 0.7rem;
-    color: var(--glow-warm);
-    text-align: right;
-  }
+  .val-display { font-size: 0.7rem; color: var(--glow-warm); text-align: right; }
 
-  /* ── WS Connect row ── */
-  .ws-row {
-    display: flex;
-    gap: 8px;
-  }
+  .ws-row { display: flex; gap: 8px; }
   .ws-row input { flex: 1; }
   .btn-connect {
     background: rgba(58,244,244,0.1);
@@ -412,15 +396,6 @@
   }
   .btn-connect:hover { background: rgba(58,244,244,0.2); }
 
-  /* ── Right panel: note log ── */
-  .note-log {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex: 1;
-    overflow-y: auto;
-  }
-
   .log-entry {
     display: flex;
     justify-content: space-between;
@@ -429,12 +404,12 @@
     padding: 4px 0;
     border-bottom: 1px solid rgba(255,255,255,0.04);
     animation: fadeIn 0.3s ease;
+    flex-shrink: 0;
   }
   .log-entry .ln { color: var(--glow-cold); font-weight: 500; }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; } }
 
-  /* ── Scale badges ── */
   .scale-pill {
     display: inline-flex;
     align-items: center;
@@ -455,7 +430,6 @@
   }
   .scale-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
 
-  /* ── Footer ── */
   footer {
     padding: 10px 32px;
     border-top: 1px solid var(--border);
@@ -471,7 +445,6 @@
 
   #debug-text { color: var(--text-dim); }
 
-  /* ── Waveform visualiser canvas ── */
   #waveform {
     width: 280px;
     height: 48px;
@@ -482,7 +455,6 @@
     flex-shrink: 0;
   }
 
-  /* ── Responsive hint for tiny screens ── */
   @media (max-width: 720px) {
     main { grid-template-columns: 1fr; }
     .side-panel { display: none; }
@@ -491,7 +463,6 @@
 </head>
 <body>
 
-<!-- ══ Header ══════════════════════════════════════════════════════════ -->
 <header>
   <div class="logo">
     AEROPHONE
@@ -503,7 +474,6 @@
   </div>
 </header>
 
-<!-- ══ Main ═════════════════════════════════════════════════════════════ -->
 <main>
 
   <!-- Left panel: settings -->
@@ -571,7 +541,6 @@
   <!-- Center stage -->
   <div class="center">
 
-    <!-- Big breath circle -->
     <div class="breath-container" id="breath-circle-wrap">
       <svg id="breath-svg" viewBox="0 0 200 200">
         <circle class="breath-track" cx="100" cy="100" r="88"/>
@@ -585,13 +554,11 @@
       </div>
     </div>
 
-    <!-- Blow indicator -->
     <div id="blow-indicator">
       <div class="blow-dot"></div>
       <span>BLOWING</span>
     </div>
 
-    <!-- Flow bar -->
     <div class="flow-bar-wrap">
       <div class="flow-label">
         <span>BREATH FLOW</span>
@@ -602,15 +569,12 @@
       </div>
     </div>
 
-    <!-- Waveform canvas -->
     <canvas id="waveform" width="280" height="48"></canvas>
 
-    <!-- Keyboard layout -->
     <div class="keyboard-section">
       <div class="keys-row" id="key-row"></div>
     </div>
 
-    <!-- Scale snap selector -->
     <div class="scale-wrap" id="scale-wrap"></div>
 
   </div>
@@ -618,21 +582,22 @@
   <!-- Right panel: note log -->
   <div class="side-panel right">
     <div class="panel-title">Note Log</div>
-    <div class="note-log" id="note-log">
-      <div style="font-size:0.65rem;color:var(--text-dim)">Notes you play will appear here…</div>
+    <!-- FIX 2: wrap log in a flex child that owns the overflow -->
+    <div class="note-log-wrap">
+      <div class="note-log" id="note-log">
+        <div style="font-size:0.65rem;color:var(--text-dim)">Notes you play will appear here…</div>
+      </div>
     </div>
   </div>
 
 </main>
 
-<!-- ══ Footer ════════════════════════════════════════════════════════════ -->
 <footer>
   <span>YF-S201 · ESP32-C6 · WEB AUDIO API</span>
   <span id="debug-text">flow: 0.00 | breath: 0.000 | latency: —</span>
   <span>KEYS: A–L &nbsp;|&nbsp; SPACE: BLOW</span>
 </footer>
 
-<!-- ══ Script ════════════════════════════════════════════════════════════ -->
 <script>
 'use strict';
 
@@ -642,26 +607,23 @@
 
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
-// Map keyboard keys (in order) to semitone offsets within the current octave
 const KEY_MAP = [
-  { key: 'a', label: 'A', semitone: 0  },  // C
-  { key: 's', label: 'S', semitone: 2  },  // D
-  { key: 'd', label: 'D', semitone: 4  },  // E
-  { key: 'f', label: 'F', semitone: 5  },  // F
-  { key: 'g', label: 'G', semitone: 7  },  // G
-  { key: 'h', label: 'H', semitone: 9  },  // A
-  { key: 'j', label: 'J', semitone: 11 },  // B
-  { key: 'k', label: 'K', semitone: 12 },  // C (octave up)
-  { key: 'l', label: 'L', semitone: 14 },  // D (octave up)
-  // Sharps / flats on top row
-  { key: 'w', label: 'W', semitone: 1  },  // C#
-  { key: 'e', label: 'E', semitone: 3  },  // D#
-  { key: 't', label: 'T', semitone: 6  },  // F#
-  { key: 'y', label: 'Y', semitone: 8  },  // G#
-  { key: 'u', label: 'U', semitone: 10 },  // A#
+  { key: 'a', label: 'A', semitone: 0  },
+  { key: 's', label: 'S', semitone: 2  },
+  { key: 'd', label: 'D', semitone: 4  },
+  { key: 'f', label: 'F', semitone: 5  },
+  { key: 'g', label: 'G', semitone: 7  },
+  { key: 'h', label: 'H', semitone: 9  },
+  { key: 'j', label: 'J', semitone: 11 },
+  { key: 'k', label: 'K', semitone: 12 },
+  { key: 'l', label: 'L', semitone: 14 },
+  { key: 'w', label: 'W', semitone: 1  },
+  { key: 'e', label: 'E', semitone: 3  },
+  { key: 't', label: 'T', semitone: 6  },
+  { key: 'y', label: 'Y', semitone: 8  },
+  { key: 'u', label: 'U', semitone: 10 },
 ];
 
-// Named scales (semitone offsets from root)
 const SCALES = {
   'Chromatic': [0,1,2,3,4,5,6,7,8,9,10,11],
   'Major':     [0,2,4,5,7,9,11],
@@ -673,27 +635,22 @@ const SCALES = {
 
 let currentScale = 'Chromatic';
 
-// ── Frequency from MIDI note number ──
 function midiToHz(midi) {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-// ── Base octave (default 4) ──
 function getBaseOctave() {
   return 4 + parseInt(document.getElementById('octave-offset').value, 10);
 }
 
-// ── Semitone → MIDI ──
 function semitoneToMidi(semi) {
-  return 12 * (getBaseOctave() + 1) + semi;   // octave offset built in
+  return 12 * (getBaseOctave() + 1) + semi;
 }
 
-// ── Snap a MIDI note to the nearest note in the current scale ──
 function snapToScale(midi) {
   const scale = SCALES[currentScale];
   const octave = Math.floor(midi / 12);
   const semi   = midi % 12;
-  // Find nearest semitone in scale (wrap around octave)
   let best = scale[0], bestDist = 13;
   for (const s of scale) {
     const d = Math.abs(s - semi);
@@ -703,8 +660,7 @@ function snapToScale(midi) {
   return octave * 12 + best;
 }
 
-// ── Semitone offset assigned to currently held key ──
-let activeSemitone = 0;    // default C
+let activeSemitone = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2.  WEB AUDIO ENGINE
@@ -716,21 +672,21 @@ let osc1, osc2, oscGain;
 let vibratoOsc, vibratoGain;
 let analyser;
 let isPlaying = false;
-let breathVal = 0;    // 0.0 – 1.0 from sensor (or keyboard sim)
+let breathVal = 0;
+
+// FIX 1: track space key state separately so note changes know if blowing
+let spaceHeld = false;
 
 function ensureAudioCtx() {
   if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  // Analyser for waveform display
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 256;
 
-  // Master gain
   masterGain = audioCtx.createGain();
   masterGain.gain.value = 0;
 
-  // Reverb
   convolver = audioCtx.createConvolver();
   convolver.buffer = buildImpulseResponse(audioCtx, 2.0, 4.0);
   reverbGain = audioCtx.createGain();
@@ -745,22 +701,21 @@ function ensureAudioCtx() {
   reverbGain.connect(analyser);
   analyser.connect(audioCtx.destination);
 
-  // Vibrato LFO
   vibratoOsc  = audioCtx.createOscillator();
   vibratoGain = audioCtx.createGain();
   vibratoOsc.frequency.value = parseFloat(document.getElementById('vib-speed').value);
-  vibratoGain.gain.value     = parseFloat(document.getElementById('vib-depth').value) / 100 * 
-                                midiToHz(snapToScale(semitoneToMidi(activeSemitone)));
+  vibratoGain.gain.value = 0;
   vibratoOsc.connect(vibratoGain);
   vibratoOsc.start();
 
-  // Main oscillators (two slightly detuned for warmth)
   osc1 = audioCtx.createOscillator();
   osc2 = audioCtx.createOscillator();
   oscGain = audioCtx.createGain();
   oscGain.gain.value = 1;
 
-  setOscFreq(midiToHz(snapToScale(semitoneToMidi(activeSemitone))));
+  const initHz = midiToHz(snapToScale(semitoneToMidi(activeSemitone)));
+  osc1.frequency.value = initHz;
+  osc2.frequency.value = initHz;
   osc1.type = osc2.type = document.getElementById('wave-type').value;
   osc1.detune.value = -4;
   osc2.detune.value = +4;
@@ -788,7 +743,6 @@ function updateReverb() {
   dryGain.gain.setTargetAtTime(1 - mix, audioCtx.currentTime, 0.1);
 }
 
-// Algorithmic reverb impulse response (exponential decay noise)
 function buildImpulseResponse(ctx, duration, decay) {
   const rate   = ctx.sampleRate;
   const length = rate * duration;
@@ -802,25 +756,23 @@ function buildImpulseResponse(ctx, duration, decay) {
   return buf;
 }
 
-// ── Smooth breath → gain mapping ──
 function applyBreath(val) {
   if (!audioCtx) return;
-  // Soft-knee curve so quiet blows sound natural
   const gain = val < 0.01 ? 0 : 0.02 + 0.45 * Math.pow(val, 0.65);
   masterGain.gain.setTargetAtTime(gain, audioCtx.currentTime, 0.04);
 
-  // Slight brightness variation with breath intensity (filter cutoff sim)
+  // FIX 1: vibrato depth scales with breath but uses a safe bounded value,
+  // never a per-frequency multiplier that could spike to near-zero or huge
   const vDepth = parseFloat(document.getElementById('vib-depth').value);
-  vibratoGain.gain.setTargetAtTime(
-    (vDepth / 100) * val * 10, audioCtx.currentTime, 0.1
-  );
+  const vibratoHz = (vDepth / 30) * val * 15;   // max ~15 cents depth
+  vibratoGain.gain.setTargetAtTime(vibratoHz, audioCtx.currentTime, 0.1);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3.  NOTE SELECTION & UI UPDATE
 // ─────────────────────────────────────────────────────────────────────────────
 
-let currentMidi = 60;  // C4
+let currentMidi = 60;
 
 function selectNote(semitone) {
   activeSemitone = semitone;
@@ -828,28 +780,40 @@ function selectNote(semitone) {
   const snapped  = snapToScale(rawMidi);
   currentMidi    = snapped;
 
-  const noteName  = NOTE_NAMES[snapped % 12];
-  const octave    = Math.floor(snapped / 12) - 1;
-  const hz        = midiToHz(snapped);
+  const noteName = NOTE_NAMES[snapped % 12];
+  const octave   = Math.floor(snapped / 12) - 1;
+  const hz       = midiToHz(snapped);
 
   document.getElementById('note-display').textContent   = noteName;
   document.getElementById('octave-display').textContent = `OCTAVE ${octave}`;
   document.getElementById('freq-display').textContent   = hz.toFixed(2) + ' Hz';
 
-  if (audioCtx) setOscFreq(hz);
+  if (audioCtx) {
+    setOscFreq(hz);
+    // FIX 1: re-apply breath so gain is not disrupted when note changes
+    // while space is held. This is the core fix for issue #1.
+    if (spaceHeld || isPlaying) {
+      applyBreath(breathVal);
+    }
+  }
 
-  // Log entry
   if (isPlaying) logNote(noteName, octave, hz);
 }
 
 function logNote(note, octave, hz) {
   const log  = document.getElementById('note-log');
+  // Remove placeholder text on first real note
+  if (log.children.length === 1 && log.firstChild.tagName !== 'DIV'.toUpperCase() === false
+      && !log.firstChild.classList.contains('log-entry')) {
+    log.innerHTML = '';
+  }
   const time = new Date().toLocaleTimeString('en', {hour12:false});
   const el   = document.createElement('div');
   el.className = 'log-entry';
   el.innerHTML = `<span class="ln">${note}${octave}</span><span>${hz.toFixed(1)} Hz</span><span>${time}</span>`;
   log.prepend(el);
-  if (log.children.length > 60) log.lastChild.remove();
+  // FIX 2: cap entries to prevent unbounded growth
+  while (log.children.length > 60) log.lastChild.remove();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -863,18 +827,18 @@ KEY_MAP.forEach(k => { KEY_TO_SEMI[k.key] = k.semitone; });
 document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
 
-  // SPACE → simulate blowing (hold to keep blowing, works on repeat too)
   if (k === ' ') {
     e.preventDefault();
-    ensureAudioCtx();
+    // FIX 1: set spaceHeld so note-key handler knows to keep audio going
+    spaceHeld = true;
     breathVal = 0.75;
     isPlaying = true;
+    ensureAudioCtx();
     updateBreathUI(breathVal, true);
     applyBreath(breathVal);
     return;
   }
 
-  // All other keys: ignore auto-repeat so note doesn't re-trigger
   if (e.repeat) return;
 
   if (k in KEY_TO_SEMI) {
@@ -882,20 +846,31 @@ document.addEventListener('keydown', e => {
     ensureAudioCtx();
     selectNote(KEY_TO_SEMI[k]);
     highlightKey(k, true);
+    // FIX 1: if space is currently held, re-affirm breath state
+    // so the gain doesn't silently collapse after selectNote()
+    if (spaceHeld) {
+      updateBreathUI(breathVal, true);
+      applyBreath(breathVal);
+    }
   }
 
-  // Z/X: octave shift
-  if (k === 'z') { document.getElementById('octave-offset').value =
-    Math.max(-2, parseInt(document.getElementById('octave-offset').value)-1);
-    selectNote(activeSemitone); }
-  if (k === 'x') { document.getElementById('octave-offset').value =
-    Math.min(2,  parseInt(document.getElementById('octave-offset').value)+1);
-    selectNote(activeSemitone); }
+  if (k === 'z') {
+    document.getElementById('octave-offset').value =
+      Math.max(-2, parseInt(document.getElementById('octave-offset').value) - 1);
+    selectNote(activeSemitone);
+  }
+  if (k === 'x') {
+    document.getElementById('octave-offset').value =
+      Math.min(2, parseInt(document.getElementById('octave-offset').value) + 1);
+    selectNote(activeSemitone);
+  }
 });
 
 document.addEventListener('keyup', e => {
   const k = e.key.toLowerCase();
   if (k === ' ') {
+    // FIX 1: clear spaceHeld so note changes know blowing stopped
+    spaceHeld = false;
     breathVal = 0;
     isPlaying = false;
     updateBreathUI(0, false);
@@ -907,15 +882,27 @@ document.addEventListener('keyup', e => {
 });
 
 // Mouse hold on breath circle
+let mouseBlowing = false;
 const bCircle = document.getElementById('breath-circle-wrap');
 bCircle.style.cursor = 'pointer';
 bCircle.addEventListener('mousedown', () => {
-  ensureAudioCtx(); breathVal = 0.8; isPlaying = true;
-  updateBreathUI(breathVal, true); applyBreath(breathVal);
+  mouseBlowing = true;
+  ensureAudioCtx();
+  breathVal = 0.8;
+  isPlaying = true;
+  updateBreathUI(breathVal, true);
+  applyBreath(breathVal);
 });
-bCircle.addEventListener('mouseup', () => {
-  breathVal = 0; isPlaying = false;
-  updateBreathUI(0, false); applyBreath(0);
+// Listen on window so mouseup outside circle still stops sound
+window.addEventListener('mouseup', () => {
+  if (!mouseBlowing) return;
+  mouseBlowing = false;
+  if (!spaceHeld) {
+    breathVal = 0;
+    isPlaying = false;
+    updateBreathUI(0, false);
+    applyBreath(0);
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -937,36 +924,23 @@ function toggleConnect() {
 
 function connectWS() {
   const url = document.getElementById('ws-url').value.trim();
-  try {
-    ws = new WebSocket(url);
-  } catch(e) {
-    console.warn('WS error:', e);
-    return;
-  }
+  try { ws = new WebSocket(url); } catch(e) { console.warn('WS error:', e); return; }
 
-  ws.onopen = () => {
-    setConnStatus(true);
-    ensureAudioCtx();
-  };
+  ws.onopen = () => { setConnStatus(true); ensureAudioCtx(); };
 
   ws.onmessage = (ev) => {
     const now = performance.now();
     const latency = wsConnected ? (now - lastWsTime).toFixed(0) : '—';
     lastWsTime = now;
-
     try {
       const data = JSON.parse(ev.data);
-      // data: { flow: float L/min, breath: float 0-1, blowing: bool }
-      const breath = parseFloat(data.breath) || 0;
-      const flow   = parseFloat(data.flow)   || 0;
+      const breath  = parseFloat(data.breath)  || 0;
+      const flow    = parseFloat(data.flow)    || 0;
       const blowing = !!data.blowing;
-
       breathVal = breath;
       isPlaying = blowing;
-
       updateBreathUI(breath, blowing);
       applyBreath(breath);
-
       document.getElementById('debug-text').textContent =
         `flow: ${flow.toFixed(2)} L/min | breath: ${breath.toFixed(3)} | latency: ${latency}ms`;
       document.getElementById('flow-raw').textContent = flow.toFixed(2) + ' L/min';
@@ -988,7 +962,6 @@ function setConnStatus(connected) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function updateBreathUI(val, blowing) {
-  // Arc: circumference = 2π×88 ≈ 553
   const circ = 553;
   const offset = circ * (1 - val);
   const arc = document.getElementById('breath-arc');
@@ -996,7 +969,6 @@ function updateBreathUI(val, blowing) {
   arc.style.stroke = blowing
     ? (val > 0.7 ? 'var(--glow-warm)' : 'var(--glow-cold)')
     : 'var(--border)';
-
   document.getElementById('flow-bar').style.width = (val * 100) + '%';
   document.getElementById('blow-indicator').classList.toggle('active', blowing);
 }
@@ -1006,22 +978,18 @@ function highlightKey(k, on) {
   if (el) el.classList.toggle('active', on);
 }
 
-// ── Build keyboard UI ──
 function buildKeyboard() {
   const row = document.getElementById('key-row');
   row.innerHTML = '';
-
-  // Main row + sharp row
-  const mainKeys = KEY_MAP.filter(k => !'wetyui'.includes(k.key));
   const sharpKeys = KEY_MAP.filter(k =>  'wetyui'.includes(k.key));
-
-  const allKeys = [...sharpKeys, ...mainKeys];
+  const mainKeys  = KEY_MAP.filter(k => !'wetyui'.includes(k.key));
+  const allKeys   = [...sharpKeys, ...mainKeys];
 
   allKeys.forEach(k => {
-    const rawMidi   = semitoneToMidi(k.semitone);
-    const snappedM  = snapToScale(rawMidi);
-    const noteName  = NOTE_NAMES[snappedM % 12];
-    const octave    = Math.floor(snappedM / 12) - 1;
+    const rawMidi  = semitoneToMidi(k.semitone);
+    const snappedM = snapToScale(rawMidi);
+    const noteName = NOTE_NAMES[snappedM % 12];
+    const octave   = Math.floor(snappedM / 12) - 1;
 
     const btn = document.createElement('div');
     btn.className = 'key-btn';
@@ -1031,13 +999,12 @@ function buildKeyboard() {
     btn.addEventListener('mousedown', () => {
       ensureAudioCtx(); selectNote(k.semitone); highlightKey(k.key, true);
     });
-    btn.addEventListener('mouseup',   () => highlightKey(k.key, false));
-    btn.addEventListener('mouseleave',() => highlightKey(k.key, false));
+    btn.addEventListener('mouseup',    () => highlightKey(k.key, false));
+    btn.addEventListener('mouseleave', () => highlightKey(k.key, false));
     row.appendChild(btn);
   });
 }
 
-// ── Build scale pills ──
 function buildScales() {
   const wrap = document.getElementById('scale-wrap');
   wrap.innerHTML = '';
@@ -1056,7 +1023,6 @@ function buildScales() {
   });
 }
 
-// ── Waveform visualiser ──
 const wfCanvas = document.getElementById('waveform');
 const wfCtx    = wfCanvas.getContext('2d');
 
@@ -1065,14 +1031,12 @@ function drawWaveform() {
   if (!analyser) return;
   const buf = new Uint8Array(analyser.frequencyBinCount);
   analyser.getByteTimeDomainData(buf);
-
   wfCtx.clearRect(0, 0, wfCanvas.width, wfCanvas.height);
   wfCtx.strokeStyle = isPlaying ? '#3af4f4' : '#1e2d4a';
   wfCtx.lineWidth = 1.5;
   wfCtx.shadowColor = '#3af4f4';
   wfCtx.shadowBlur  = isPlaying ? 6 : 0;
   wfCtx.beginPath();
-
   const sliceW = wfCanvas.width / buf.length;
   let x = 0;
   for (let i = 0; i < buf.length; i++) {
@@ -1084,12 +1048,10 @@ function drawWaveform() {
   wfCtx.stroke();
 }
 
-// ── Sync waveform type ──
 document.getElementById('wave-type').addEventListener('change', e => {
   if (osc1) { osc1.type = e.target.value; osc2.type = e.target.value; }
 });
 
-// ── Sync vibrato speed ──
 document.getElementById('vib-speed').addEventListener('input', e => {
   if (vibratoOsc) vibratoOsc.frequency.value = parseFloat(e.target.value);
 });
@@ -1100,13 +1062,12 @@ document.getElementById('vib-speed').addEventListener('input', e => {
 
 buildKeyboard();
 buildScales();
-selectNote(0);   // default C
+selectNote(0);
 drawWaveform();
 
-// Select note display for initial state
-document.getElementById('note-display').textContent = 'C';
+document.getElementById('note-display').textContent   = 'C';
 document.getElementById('octave-display').textContent = 'OCTAVE 4';
-document.getElementById('freq-display').textContent = '261.63 Hz';
+document.getElementById('freq-display').textContent   = '261.63 Hz';
 
 console.log('%cAEROPHONE digital flute ready!', 'color:#3af4f4;font-size:14px;font-weight:bold');
 console.log('Keys A-L + W/E/T/Y/U for notes. SPACE to blow. Z/X for octave.');
