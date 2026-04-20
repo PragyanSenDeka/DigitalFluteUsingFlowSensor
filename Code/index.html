@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Flute</title>
+<style>
+  /* ── Fonts ── */
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+  /* ── Design Tokens ── */
+  :root {
+    --bg:          #06080f;
+    --panel:       #0d1220;
+    --border:      #1e2d4a;
+    --glow-cold:   #3af4f4;
+    --glow-warm:   #f4a33a;
+    --glow-blow:   #7dffc4;
+    --text-dim:    #4a6080;
+    --text-mid:    #8ab0d0;
+    --text-hi:     #d6eeff;
+    --note-active: #3af4f4;
+    --note-idle:   #1a2a3a;
+    --red:         #f43a5e;
+    --radius:      12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-hi);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Atmospheric background ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 80%, #0a1f3320 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 80% 20%, #0a2f4420 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ── Scanline overlay ── */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent 0px, transparent 3px,
+      rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(13,18,32,0.8);
+    backdrop-filter: blur(12px);
+    position: relative;
+    z-index: 10;
+  }
+
+  .logo {
+    font-family: 'Cinzel', serif;
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: var(--glow-cold);
+    text-shadow: 0 0 20px var(--glow-cold), 0 0 40px rgba(58,244,244,0.3);
+  }
+
+  .logo span { color: var(--text-dim); font-weight: 400; font-size: 0.75rem; letter-spacing: 3px; display: block; }
+
+  /* Connection status */
+  #conn-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  #conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red);
+    transition: all 0.4s;
+  }
+  #conn-dot.connected {
+    background: var(--glow-blow);
+    box-shadow: 0 0 8px var(--glow-blow);
+  }
+
+  /* ── Main layout ── */
+  main {
+    display: grid;
+    grid-template-columns: 260px 1fr 220px;
+    gap: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar panels ── */
+  .side-panel {
+    border-right: 1px solid var(--border);
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+    background: rgba(13,18,32,0.5);
+  }
+  .side-panel.right {
+    border-right: none;
+    border-left: 1px solid var(--border);
+  }
+
+  .panel-title {
+    font-size: 0.65rem;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Center stage ── */
+  .center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 24px;
+    position: relative;
+  }
+
+  /* ── Breath meter (the big circle) ── */
+  .breath-container {
+    position: relative;
+    width: 240px;
+    height: 240px;
+  }
+
+  #breath-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .breath-track {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 6;
+  }
+
+  #breath-arc {
+    fill: none;
+    stroke: var(--glow-cold);
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-dasharray: 628;
+    stroke-dashoffset: 628;
+    filter: drop-shadow(0 0 8px var(--glow-cold));
+    transition: stroke-dashoffset 0.06s linear, stroke 0.3s;
+  }
+
+  .breath-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  #note-display {
+    font-family: 'Cinzel', serif;
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: var(--glow-cold);
+    text-shadow: 0 0 24px var(--glow-cold), 0 0 48px rgba(58,244,244,0.4);
+    transition: color 0.2s, text-shadow 0.2s;
+    line-height: 1;
+  }
+
+  #octave-display {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  #freq-display {
+    font-size: 0.75rem;
+    color: var(--glow-warm);
+    opacity: 0.8;
+  }
+
+  /* ── Flow meter bar ── */
+  .flow-bar-wrap {
+    width: 280px;
+  }
+
+  .flow-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+
+  .flow-bar-bg {
+    height: 8px;
+    background: var(--note-idle);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  #flow-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--glow-cold), var(--glow-blow));
+    border-radius: 4px;
+    box-shadow: 0 0 10px var(--glow-cold);
+    transition: width 0.06s linear;
+  }
+
+  /* "BLOWING" pill indicator */
+  #blow-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.65rem;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    opacity: 0.4;
+    transition: opacity 0.2s, color 0.2s;
+  }
+  #blow-indicator.active {
+    color: var(--glow-blow);
+    opacity: 1;
+  }
+  .blow-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
+  }
+
+  /* ── Keyboard/Notes grid ── */
+  .keyboard-section {
+    width: 100%;
+    max-width: 520px;
+  }
+
+  .keys-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .key-btn {
+    width: 48px;
+    height: 64px;
+    background: var(--note-idle);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.12s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .key-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(58,244,244,0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .key-btn:hover::before { opacity: 1; }
+
+  .key-btn.active {
+    background: rgba(58,244,244,0.15);
+    border-color: var(--glow-cold);
+    box-shadow: 0 0 16px rgba(58,244,244,0.25), inset 0 0 12px rgba(58,244,244,0.1);
+    transform: translateY(-2px);
+  }
+
+  .key-btn.active::before { opacity: 1; }
+
+  .key-label {
+    font-size: 0.75rem;
+    color: var(--text-hi);
+    font-weight: 500;
+    letter-spacing: 1px;
+  }
+
+  .key-note {
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .key-btn.active .key-note {
+    color: var(--glow-cold);
+  }
+
+  /* ── Settings: left panel ── */
+  .setting-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .setting-label {
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--glow-cold);
+    box-shadow: 0 0 8px var(--glow-cold);
+    cursor: pointer;
+  }
+
+  select, input[type=text] {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-hi);
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: 0.75rem;
+    width: 100%;
+    outline: none;
+  }
+  select:focus, input[type=text]:focus {
+    border-color: var(--glow-cold);
+  }
+
+  .val-display {
+    font-size: 0.7rem;
+    color: var(--glow-warm);
+    text-align: right;
+  }
+
+  /* ── WS Connect row ── */
+  .ws-row {
+    display: flex;
+    gap: 8px;
+  }
+  .ws-row input { flex: 1; }
+  .btn-connect {
+    background: rgba(58,244,244,0.1);
+    border: 1px solid var(--glow-cold);
+    color: var(--glow-cold);
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+    letter-spacing: 1px;
+  }
+  .btn-connect:hover { background: rgba(58,244,244,0.2); }
+
+  /* ── Right panel: note log ── */
+  .note-log {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .log-entry {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    animation: fadeIn 0.3s ease;
+  }
+  .log-entry .ln { color: var(--glow-cold); font-weight: 500; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; } }
+
+  /* ── Scale badges ── */
+  .scale-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    background: var(--note-idle);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 0.6rem;
+    color: var(--text-mid);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+  }
+  .scale-pill.active {
+    background: rgba(58,244,244,0.12);
+    border-color: var(--glow-cold);
+    color: var(--glow-cold);
+  }
+  .scale-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* ── Footer ── */
+  footer {
+    padding: 10px 32px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    background: rgba(13,18,32,0.8);
+    z-index: 10;
+  }
+
+  #debug-text { color: var(--text-dim); }
+
+  /* ── Waveform visualiser canvas ── */
+  #waveform {
+    width: 280px;
+    height: 48px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    opacity: 0.8;
+  }
+
+  /* ── Responsive hint for tiny screens ── */
+  @media (max-width: 720px) {
+    main { grid-template-columns: 1fr; }
+    .side-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ Header ══════════════════════════════════════════════════════════ -->
+<header>
+  <div class="logo">
+    AEROPHONE
+    <span>ESP32 DIGITAL FLUTE</span>
+  </div>
+  <div id="conn-status">
+    <div id="conn-dot"></div>
+    <span id="conn-label">DISCONNECTED</span>
+  </div>
+</header>
+
+<!-- ══ Main ═════════════════════════════════════════════════════════════ -->
+<main>
+
+  <!-- Left panel: settings -->
+  <div class="side-panel">
+    <div class="panel-title">Connection</div>
+
+    <div class="setting-row">
+      <div class="setting-label">ESP32 WebSocket URL</div>
+      <div class="ws-row">
+        <input type="text" id="ws-url" value="ws://192.168.1.100:81" placeholder="ws://x.x.x.x:81">
+        <button class="btn-connect" onclick="toggleConnect()">CONNECT</button>
+      </div>
+    </div>
+
+    <div class="panel-title">Sound</div>
+
+    <div class="setting-row">
+      <div class="setting-label">Waveform</div>
+      <select id="wave-type">
+        <option value="sine">Sine (flute-like)</option>
+        <option value="triangle">Triangle (soft)</option>
+        <option value="sawtooth">Sawtooth (bright)</option>
+        <option value="square">Square (hollow)</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label">Vibrato Speed <span class="val-display" id="vib-speed-val">4 Hz</span></div>
+      <input type="range" id="vib-speed" min="0" max="10" step="0.1" value="4"
+             oninput="document.getElementById('vib-speed-val').textContent = this.value + ' Hz'">
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label">Vibrato Depth <span class="val-display" id="vib-depth-val">6 ct</span></div>
+      <input type="range" id="vib-depth" min="0" max="30" step="1" value="6"
+             oninput="document.getElementById('vib-depth-val').textContent = this.value + ' ct'">
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label">Reverb Mix <span class="val-display" id="reverb-val">25%</span></div>
+      <input type="range" id="reverb-mix" min="0" max="1" step="0.01" value="0.25"
+             oninput="document.getElementById('reverb-val').textContent = Math.round(this.value*100)+'%'; updateReverb()">
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label">Octave offset</div>
+      <select id="octave-offset">
+        <option value="-2">-2</option>
+        <option value="-1">-1</option>
+        <option value="0" selected>0 (default)</option>
+        <option value="1">+1</option>
+        <option value="2">+2</option>
+      </select>
+    </div>
+
+    <div class="panel-title">Simulation (no ESP)</div>
+    <div class="setting-row">
+      <div class="setting-label">Blow with mouse/space</div>
+      <div style="font-size:0.65rem;color:var(--text-dim);line-height:1.6;">
+        Hold <strong style="color:var(--text-mid)">SPACE</strong> to simulate blowing, or click the breath circle.
+      </div>
+    </div>
+  </div>
+
+  <!-- Center stage -->
+  <div class="center">
+
+    <!-- Big breath circle -->
+    <div class="breath-container" id="breath-circle-wrap">
+      <svg id="breath-svg" viewBox="0 0 200 200">
+        <circle class="breath-track" cx="100" cy="100" r="88"/>
+        <circle id="breath-arc"      cx="100" cy="100" r="88"
+                stroke-dasharray="553" stroke-dashoffset="553"/>
+      </svg>
+      <div class="breath-center">
+        <div id="note-display">—</div>
+        <div id="octave-display">OCTAVE 4</div>
+        <div id="freq-display">— Hz</div>
+      </div>
+    </div>
+
+    <!-- Blow indicator -->
+    <div id="blow-indicator">
+      <div class="blow-dot"></div>
+      <span>BLOWING</span>
+    </div>
+
+    <!-- Flow bar -->
+    <div class="flow-bar-wrap">
+      <div class="flow-label">
+        <span>BREATH FLOW</span>
+        <span id="flow-raw">0.00 L/min</span>
+      </div>
+      <div class="flow-bar-bg">
+        <div id="flow-bar"></div>
+      </div>
+    </div>
+
+    <!-- Waveform canvas -->
+    <canvas id="waveform" width="280" height="48"></canvas>
+
+    <!-- Keyboard layout -->
+    <div class="keyboard-section">
+      <div class="keys-row" id="key-row"></div>
+    </div>
+
+    <!-- Scale snap selector -->
+    <div class="scale-wrap" id="scale-wrap"></div>
+
+  </div>
+
+  <!-- Right panel: note log -->
+  <div class="side-panel right">
+    <div class="panel-title">Note Log</div>
+    <div class="note-log" id="note-log">
+      <div style="font-size:0.65rem;color:var(--text-dim)">Notes you play will appear here…</div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ══ Footer ════════════════════════════════════════════════════════════ -->
+<footer>
+  <span>YF-S201 · ESP32-C6 · WEB AUDIO API</span>
+  <span id="debug-text">flow: 0.00 | breath: 0.000 | latency: —</span>
+  <span>KEYS: A–L &nbsp;|&nbsp; SPACE: BLOW</span>
+</footer>
+
+<!-- ══ Script ════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1.  NOTE / SCALE DATA
+// ─────────────────────────────────────────────────────────────────────────────
+
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+// Map keyboard keys (in order) to semitone offsets within the current octave
+const KEY_MAP = [
+  { key: 'a', label: 'A', semitone: 0  },  // C
+  { key: 's', label: 'S', semitone: 2  },  // D
+  { key: 'd', label: 'D', semitone: 4  },  // E
+  { key: 'f', label: 'F', semitone: 5  },  // F
+  { key: 'g', label: 'G', semitone: 7  },  // G
+  { key: 'h', label: 'H', semitone: 9  },  // A
+  { key: 'j', label: 'J', semitone: 11 },  // B
+  { key: 'k', label: 'K', semitone: 12 },  // C (octave up)
+  { key: 'l', label: 'L', semitone: 14 },  // D (octave up)
+  // Sharps / flats on top row
+  { key: 'w', label: 'W', semitone: 1  },  // C#
+  { key: 'e', label: 'E', semitone: 3  },  // D#
+  { key: 't', label: 'T', semitone: 6  },  // F#
+  { key: 'y', label: 'Y', semitone: 8  },  // G#
+  { key: 'u', label: 'U', semitone: 10 },  // A#
+];
+
+// Named scales (semitone offsets from root)
+const SCALES = {
+  'Chromatic': [0,1,2,3,4,5,6,7,8,9,10,11],
+  'Major':     [0,2,4,5,7,9,11],
+  'Minor':     [0,2,3,5,7,8,10],
+  'Pentatonic':[0,2,4,7,9],
+  'Blues':     [0,3,5,6,7,10],
+  'Dorian':    [0,2,3,5,7,9,10],
+};
+
+let currentScale = 'Chromatic';
+
+// ── Frequency from MIDI note number ──
+function midiToHz(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+// ── Base octave (default 4) ──
+function getBaseOctave() {
+  return 4 + parseInt(document.getElementById('octave-offset').value, 10);
+}
+
+// ── Semitone → MIDI ──
+function semitoneToMidi(semi) {
+  return 12 * (getBaseOctave() + 1) + semi;   // octave offset built in
+}
+
+// ── Snap a MIDI note to the nearest note in the current scale ──
+function snapToScale(midi) {
+  const scale = SCALES[currentScale];
+  const octave = Math.floor(midi / 12);
+  const semi   = midi % 12;
+  // Find nearest semitone in scale (wrap around octave)
+  let best = scale[0], bestDist = 13;
+  for (const s of scale) {
+    const d = Math.abs(s - semi);
+    const dWrap = Math.min(d, 12 - d);
+    if (dWrap < bestDist) { bestDist = dWrap; best = s; }
+  }
+  return octave * 12 + best;
+}
+
+// ── Semitone offset assigned to currently held key ──
+let activeSemitone = 0;    // default C
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2.  WEB AUDIO ENGINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+let audioCtx = null;
+let masterGain, reverbGain, dryGain, convolver;
+let osc1, osc2, oscGain;
+let vibratoOsc, vibratoGain;
+let analyser;
+let isPlaying = false;
+let breathVal = 0;    // 0.0 – 1.0 from sensor (or keyboard sim)
+
+function ensureAudioCtx() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Analyser for waveform display
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+
+  // Master gain
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0;
+
+  // Reverb
+  convolver = audioCtx.createConvolver();
+  convolver.buffer = buildImpulseResponse(audioCtx, 2.0, 4.0);
+  reverbGain = audioCtx.createGain();
+  reverbGain.gain.value = parseFloat(document.getElementById('reverb-mix').value);
+  dryGain    = audioCtx.createGain();
+  dryGain.gain.value = 1 - reverbGain.gain.value;
+
+  masterGain.connect(dryGain);
+  masterGain.connect(convolver);
+  convolver.connect(reverbGain);
+  dryGain.connect(analyser);
+  reverbGain.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  // Vibrato LFO
+  vibratoOsc  = audioCtx.createOscillator();
+  vibratoGain = audioCtx.createGain();
+  vibratoOsc.frequency.value = parseFloat(document.getElementById('vib-speed').value);
+  vibratoGain.gain.value     = parseFloat(document.getElementById('vib-depth').value) / 100 * 
+                                midiToHz(snapToScale(semitoneToMidi(activeSemitone)));
+  vibratoOsc.connect(vibratoGain);
+  vibratoOsc.start();
+
+  // Main oscillators (two slightly detuned for warmth)
+  osc1 = audioCtx.createOscillator();
+  osc2 = audioCtx.createOscillator();
+  oscGain = audioCtx.createGain();
+  oscGain.gain.value = 1;
+
+  setOscFreq(midiToHz(snapToScale(semitoneToMidi(activeSemitone))));
+  osc1.type = osc2.type = document.getElementById('wave-type').value;
+  osc1.detune.value = -4;
+  osc2.detune.value = +4;
+  vibratoGain.connect(osc1.detune);
+  vibratoGain.connect(osc2.detune);
+
+  osc1.connect(oscGain);
+  osc2.connect(oscGain);
+  oscGain.connect(masterGain);
+  osc1.start();
+  osc2.start();
+}
+
+function setOscFreq(hz) {
+  if (!osc1) return;
+  const now = audioCtx.currentTime;
+  osc1.frequency.setTargetAtTime(hz, now, 0.03);
+  osc2.frequency.setTargetAtTime(hz, now, 0.03);
+}
+
+function updateReverb() {
+  if (!reverbGain) return;
+  const mix = parseFloat(document.getElementById('reverb-mix').value);
+  reverbGain.gain.setTargetAtTime(mix,     audioCtx.currentTime, 0.1);
+  dryGain.gain.setTargetAtTime(1 - mix, audioCtx.currentTime, 0.1);
+}
+
+// Algorithmic reverb impulse response (exponential decay noise)
+function buildImpulseResponse(ctx, duration, decay) {
+  const rate   = ctx.sampleRate;
+  const length = rate * duration;
+  const buf    = ctx.createBuffer(2, length, rate);
+  for (let c = 0; c < 2; c++) {
+    const data = buf.getChannelData(c);
+    for (let i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    }
+  }
+  return buf;
+}
+
+// ── Smooth breath → gain mapping ──
+function applyBreath(val) {
+  if (!audioCtx) return;
+  // Soft-knee curve so quiet blows sound natural
+  const gain = val < 0.01 ? 0 : 0.02 + 0.45 * Math.pow(val, 0.65);
+  masterGain.gain.setTargetAtTime(gain, audioCtx.currentTime, 0.04);
+
+  // Slight brightness variation with breath intensity (filter cutoff sim)
+  const vDepth = parseFloat(document.getElementById('vib-depth').value);
+  vibratoGain.gain.setTargetAtTime(
+    (vDepth / 100) * val * 10, audioCtx.currentTime, 0.1
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3.  NOTE SELECTION & UI UPDATE
+// ─────────────────────────────────────────────────────────────────────────────
+
+let currentMidi = 60;  // C4
+
+function selectNote(semitone) {
+  activeSemitone = semitone;
+  const rawMidi  = semitoneToMidi(semitone);
+  const snapped  = snapToScale(rawMidi);
+  currentMidi    = snapped;
+
+  const noteName  = NOTE_NAMES[snapped % 12];
+  const octave    = Math.floor(snapped / 12) - 1;
+  const hz        = midiToHz(snapped);
+
+  document.getElementById('note-display').textContent   = noteName;
+  document.getElementById('octave-display').textContent = `OCTAVE ${octave}`;
+  document.getElementById('freq-display').textContent   = hz.toFixed(2) + ' Hz';
+
+  if (audioCtx) setOscFreq(hz);
+
+  // Log entry
+  if (isPlaying) logNote(noteName, octave, hz);
+}
+
+function logNote(note, octave, hz) {
+  const log  = document.getElementById('note-log');
+  const time = new Date().toLocaleTimeString('en', {hour12:false});
+  const el   = document.createElement('div');
+  el.className = 'log-entry';
+  el.innerHTML = `<span class="ln">${note}${octave}</span><span>${hz.toFixed(1)} Hz</span><span>${time}</span>`;
+  log.prepend(el);
+  if (log.children.length > 60) log.lastChild.remove();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4.  KEYBOARD INPUT
+// ─────────────────────────────────────────────────────────────────────────────
+
+const pressedKeys = new Set();
+const KEY_TO_SEMI = {};
+KEY_MAP.forEach(k => { KEY_TO_SEMI[k.key] = k.semitone; });
+
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const k = e.key.toLowerCase();
+
+  // SPACE → simulate blowing
+  if (k === ' ') {
+    e.preventDefault();
+    ensureAudioCtx();
+    breathVal = 0.75;
+    isPlaying = true;
+    updateBreathUI(breathVal, true);
+    applyBreath(breathVal);
+    return;
+  }
+
+  if (k in KEY_TO_SEMI) {
+    pressedKeys.add(k);
+    ensureAudioCtx();
+    selectNote(KEY_TO_SEMI[k]);
+    highlightKey(k, true);
+  }
+
+  // Z/X: octave shift
+  if (k === 'z') { document.getElementById('octave-offset').value =
+    Math.max(-2, parseInt(document.getElementById('octave-offset').value)-1);
+    selectNote(activeSemitone); }
+  if (k === 'x') { document.getElementById('octave-offset').value =
+    Math.min(2,  parseInt(document.getElementById('octave-offset').value)+1);
+    selectNote(activeSemitone); }
+});
+
+document.addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  if (k === ' ') {
+    breathVal = 0;
+    isPlaying = false;
+    updateBreathUI(0, false);
+    applyBreath(0);
+    return;
+  }
+  pressedKeys.delete(k);
+  highlightKey(k, false);
+});
+
+// Mouse hold on breath circle
+const bCircle = document.getElementById('breath-circle-wrap');
+bCircle.style.cursor = 'pointer';
+bCircle.addEventListener('mousedown', () => {
+  ensureAudioCtx(); breathVal = 0.8; isPlaying = true;
+  updateBreathUI(breathVal, true); applyBreath(breathVal);
+});
+bCircle.addEventListener('mouseup', () => {
+  breathVal = 0; isPlaying = false;
+  updateBreathUI(0, false); applyBreath(0);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5.  WEBSOCKET FROM ESP32
+// ─────────────────────────────────────────────────────────────────────────────
+
+let ws = null;
+let wsConnected = false;
+let lastWsTime = 0;
+
+function toggleConnect() {
+  if (wsConnected) {
+    ws && ws.close();
+    setConnStatus(false);
+    return;
+  }
+  connectWS();
+}
+
+function connectWS() {
+  const url = document.getElementById('ws-url').value.trim();
+  try {
+    ws = new WebSocket(url);
+  } catch(e) {
+    console.warn('WS error:', e);
+    return;
+  }
+
+  ws.onopen = () => {
+    setConnStatus(true);
+    ensureAudioCtx();
+  };
+
+  ws.onmessage = (ev) => {
+    const now = performance.now();
+    const latency = wsConnected ? (now - lastWsTime).toFixed(0) : '—';
+    lastWsTime = now;
+
+    try {
+      const data = JSON.parse(ev.data);
+      // data: { flow: float L/min, breath: float 0-1, blowing: bool }
+      const breath = parseFloat(data.breath) || 0;
+      const flow   = parseFloat(data.flow)   || 0;
+      const blowing = !!data.blowing;
+
+      breathVal = breath;
+      isPlaying = blowing;
+
+      updateBreathUI(breath, blowing);
+      applyBreath(breath);
+
+      document.getElementById('debug-text').textContent =
+        `flow: ${flow.toFixed(2)} L/min | breath: ${breath.toFixed(3)} | latency: ${latency}ms`;
+      document.getElementById('flow-raw').textContent = flow.toFixed(2) + ' L/min';
+    } catch(e) {}
+  };
+
+  ws.onerror = () => setConnStatus(false);
+  ws.onclose = () => setConnStatus(false);
+}
+
+function setConnStatus(connected) {
+  wsConnected = connected;
+  document.getElementById('conn-dot').classList.toggle('connected', connected);
+  document.getElementById('conn-label').textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6.  UI HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function updateBreathUI(val, blowing) {
+  // Arc: circumference = 2π×88 ≈ 553
+  const circ = 553;
+  const offset = circ * (1 - val);
+  const arc = document.getElementById('breath-arc');
+  arc.style.strokeDashoffset = offset;
+  arc.style.stroke = blowing
+    ? (val > 0.7 ? 'var(--glow-warm)' : 'var(--glow-cold)')
+    : 'var(--border)';
+
+  document.getElementById('flow-bar').style.width = (val * 100) + '%';
+  document.getElementById('blow-indicator').classList.toggle('active', blowing);
+}
+
+function highlightKey(k, on) {
+  const el = document.querySelector(`[data-key="${k}"]`);
+  if (el) el.classList.toggle('active', on);
+}
+
+// ── Build keyboard UI ──
+function buildKeyboard() {
+  const row = document.getElementById('key-row');
+  row.innerHTML = '';
+
+  // Main row + sharp row
+  const mainKeys = KEY_MAP.filter(k => !'wetyui'.includes(k.key));
+  const sharpKeys = KEY_MAP.filter(k =>  'wetyui'.includes(k.key));
+
+  const allKeys = [...sharpKeys, ...mainKeys];
+
+  allKeys.forEach(k => {
+    const rawMidi   = semitoneToMidi(k.semitone);
+    const snappedM  = snapToScale(rawMidi);
+    const noteName  = NOTE_NAMES[snappedM % 12];
+    const octave    = Math.floor(snappedM / 12) - 1;
+
+    const btn = document.createElement('div');
+    btn.className = 'key-btn';
+    btn.dataset.key = k.key;
+    btn.innerHTML = `<span class="key-label">${k.label}</span>
+                     <span class="key-note">${noteName}${octave}</span>`;
+    btn.addEventListener('mousedown', () => {
+      ensureAudioCtx(); selectNote(k.semitone); highlightKey(k.key, true);
+    });
+    btn.addEventListener('mouseup',   () => highlightKey(k.key, false));
+    btn.addEventListener('mouseleave',() => highlightKey(k.key, false));
+    row.appendChild(btn);
+  });
+}
+
+// ── Build scale pills ──
+function buildScales() {
+  const wrap = document.getElementById('scale-wrap');
+  wrap.innerHTML = '';
+  Object.keys(SCALES).forEach(s => {
+    const pill = document.createElement('div');
+    pill.className = 'scale-pill' + (s === currentScale ? ' active' : '');
+    pill.textContent = s;
+    pill.onclick = () => {
+      currentScale = s;
+      document.querySelectorAll('.scale-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      buildKeyboard();
+      selectNote(activeSemitone);
+    };
+    wrap.appendChild(pill);
+  });
+}
+
+// ── Waveform visualiser ──
+const wfCanvas = document.getElementById('waveform');
+const wfCtx    = wfCanvas.getContext('2d');
+
+function drawWaveform() {
+  requestAnimationFrame(drawWaveform);
+  if (!analyser) return;
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteTimeDomainData(buf);
+
+  wfCtx.clearRect(0, 0, wfCanvas.width, wfCanvas.height);
+  wfCtx.strokeStyle = isPlaying ? '#3af4f4' : '#1e2d4a';
+  wfCtx.lineWidth = 1.5;
+  wfCtx.shadowColor = '#3af4f4';
+  wfCtx.shadowBlur  = isPlaying ? 6 : 0;
+  wfCtx.beginPath();
+
+  const sliceW = wfCanvas.width / buf.length;
+  let x = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const v = buf[i] / 128 - 1;
+    const y = (v * wfCanvas.height / 2) + wfCanvas.height / 2;
+    i === 0 ? wfCtx.moveTo(x, y) : wfCtx.lineTo(x, y);
+    x += sliceW;
+  }
+  wfCtx.stroke();
+}
+
+// ── Sync waveform type ──
+document.getElementById('wave-type').addEventListener('change', e => {
+  if (osc1) { osc1.type = e.target.value; osc2.type = e.target.value; }
+});
+
+// ── Sync vibrato speed ──
+document.getElementById('vib-speed').addEventListener('input', e => {
+  if (vibratoOsc) vibratoOsc.frequency.value = parseFloat(e.target.value);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7.  INIT
+// ─────────────────────────────────────────────────────────────────────────────
+
+buildKeyboard();
+buildScales();
+selectNote(0);   // default C
+drawWaveform();
+
+// Select note display for initial state
+document.getElementById('note-display').textContent = 'C';
+document.getElementById('octave-display').textContent = 'OCTAVE 4';
+document.getElementById('freq-display').textContent = '261.63 Hz';
+
+console.log('%cAEROPHONE digital flute ready!', 'color:#3af4f4;font-size:14px;font-weight:bold');
+console.log('Keys A-L + W/E/T/Y/U for notes. SPACE to blow. Z/X for octave.');
+</script>
+</body>
+</html>
